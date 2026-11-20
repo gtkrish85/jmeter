@@ -20,6 +20,7 @@ package org.apache.jmeter.visualizers;
 import java.io.Serializable;
 import java.text.Format;
 import java.util.Date;
+import java.util.function.LongSupplier;
 
 public class Sample implements Serializable, Comparable<Sample> {
     private static final long serialVersionUID = 240L;
@@ -28,9 +29,13 @@ public class Sample implements Serializable, Comparable<Sample> {
 
     private final long average;
 
-    private final long median;
+    private transient volatile LongSupplier medianSupplier;
 
-    private final long distributionLine; // TODO: what is this for?
+    private volatile long median;
+
+    private transient volatile LongSupplier distributionLineSupplier;
+
+    private volatile long distributionLine; // TODO: what is this for?
 
     private final long deviation;
 
@@ -52,30 +57,67 @@ public class Sample implements Serializable, Comparable<Sample> {
 
     public Sample(String name, long data, long average, long deviation, long median, long distributionLine,
             double throughput, long errorCount, boolean success, long num, long endTime) {
-        this.data = data;
-        this.average = average;
-        this.deviation = deviation;
-        this.throughput = throughput;
-        this.success = success;
-        this.median = median;
-        this.distributionLine = distributionLine;
-        this.label = name;
-        this.errorCount = errorCount;
-        this.count = num;
-        this.endTime = endTime;
-        this.bytes = 0;
-        this.threadName = "";
+        this(name, data, average, deviation, median, distributionLine, throughput, errorCount, success, num, endTime, 0, "");
     }
 
     public Sample(String name, long data, long average, long deviation, long median, long distributionLine,
             double throughput, long errorCount, boolean success, long num, long endTime, int bytes, String threadName) {
+        this(name, data, average, deviation, (LongSupplier) null, (LongSupplier) null, throughput, errorCount,
+                success, num, endTime, bytes, threadName);
+        this.median = median;
+        this.distributionLine = distributionLine;
+        this.distributionLineSupplier = null;
+    }
+
+    /**
+     * Creates a {@link Sample} with lazy suppliers for median and distribution line.
+     *
+     * @param name sample label
+     * @param data response time
+     * @param average average response time
+     * @param deviation standard deviation
+     * @param medianSupplier supplier computing median on demand
+     * @param distributionLineSupplier supplier computing distribution line on demand (null falls back to median)
+     * @param throughput throughput rate
+     * @param errorCount count of errors
+     * @param success whether sample succeeded
+     * @param num sample count
+     * @param endTime sample end time
+     */
+    public Sample(String name, long data, long average, long deviation, LongSupplier medianSupplier,
+            LongSupplier distributionLineSupplier, double throughput, long errorCount, boolean success,
+            long num, long endTime) {
+        this(name, data, average, deviation, medianSupplier, distributionLineSupplier, throughput, errorCount,
+                success, num, endTime, 0, "");
+    }
+
+    /**
+     * Creates a {@link Sample} with lazy suppliers for median and distribution line.
+     *
+     * @param name sample label
+     * @param data response time
+     * @param average average response time
+     * @param deviation standard deviation
+     * @param medianSupplier supplier computing median on demand
+     * @param distributionLineSupplier supplier computing distribution line on demand (null falls back to median)
+     * @param throughput throughput rate
+     * @param errorCount count of errors
+     * @param success whether sample succeeded
+     * @param num sample count
+     * @param endTime sample end time
+     * @param bytes sample byte count
+     * @param threadName name of the execution thread
+     */
+    public Sample(String name, long data, long average, long deviation, LongSupplier medianSupplier,
+            LongSupplier distributionLineSupplier, double throughput, long errorCount, boolean success,
+            long num, long endTime, int bytes, String threadName) {
         this.data = data;
         this.average = average;
         this.deviation = deviation;
         this.throughput = throughput;
         this.success = success;
-        this.median = median;
-        this.distributionLine = distributionLine;
+        this.medianSupplier = medianSupplier;
+        this.distributionLineSupplier = distributionLineSupplier != null ? distributionLineSupplier : this::getMedian;
         this.label = name;
         this.errorCount = errorCount;
         this.count = num;
@@ -125,6 +167,14 @@ public class Sample implements Serializable, Comparable<Sample> {
      * @return Returns the distributionLine.
      */
     public long getDistributionLine() {
+        if (distributionLineSupplier != null) {
+            synchronized (this) {
+                if (distributionLineSupplier != null) {
+                    distributionLine = distributionLineSupplier.getAsLong();
+                    distributionLineSupplier = null;
+                }
+            }
+        }
         return distributionLine;
     }
 
@@ -160,7 +210,21 @@ public class Sample implements Serializable, Comparable<Sample> {
      * @return Returns the median.
      */
     public long getMedian() {
+        if (medianSupplier != null) {
+            synchronized (this) {
+                if (medianSupplier != null) {
+                    median = medianSupplier.getAsLong();
+                    medianSupplier = null;
+                }
+            }
+        }
         return median;
+    }
+
+    private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+        getMedian();
+        getDistributionLine();
+        s.defaultWriteObject();
     }
 
     /**

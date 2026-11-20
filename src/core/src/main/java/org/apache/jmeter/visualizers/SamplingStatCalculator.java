@@ -175,8 +175,6 @@ public class SamplingStatCalculator {
         long rtime;
         long cmean;
         long cstdv;
-        long cmedian;
-        long cpercent;
         long eCount;
         long endTime;
         double throughput;
@@ -198,15 +196,19 @@ public class SamplingStatCalculator {
             rtime = res.getTime();
             cmean = (long)calculator.getMean();
             cstdv = (long)calculator.getStandardDeviation();
-            cmedian = calculator.getMedian();
-            cpercent = calculator.getPercentPoint(0.500);
-// TODO cpercent is the same as cmedian here - why? and why pass it to "distributionLine"?
             rbool = res.isSuccessful();
         }
 
         long count = calculator.getCount();
         Sample s =
-            new Sample( null, rtime, cmean, cstdv, cmedian, cpercent, throughput, eCount, rbool, count, endTime );
+            new Sample( null, rtime, cmean, cstdv,
+                () -> {
+                    synchronized (calculator) {
+                        return calculator.getMedian().longValue();
+                    }
+                },
+                null,
+                throughput, eCount, rbool, count, endTime );
         currentSample = s;
         return s;
     }

@@ -49,4 +49,41 @@ public class TestSamplingStatCalculator {
         ssc.addSample(res);
         assertEquals(5, ssc.getAvgPageBytes(), 0);
     }
+
+    @Test
+    public void testLazyMedian() {
+        SampleResult res1 = new SampleResult(1000L, 10L);
+        Sample s1 = ssc.addSample(res1);
+        assertEquals(10L, s1.getMedian());
+        assertEquals(10L, s1.getDistributionLine());
+
+        SampleResult res2 = new SampleResult(1020L, 30L);
+        Sample s2 = ssc.addSample(res2);
+
+        SampleResult res3 = new SampleResult(1060L, 20L);
+        Sample s3 = ssc.addSample(res3);
+
+        assertEquals(20L, s3.getMedian());
+        assertEquals(20L, s3.getDistributionLine());
+        assertEquals(20L, ssc.getCurrentSample().getMedian());
+        assertEquals(20L, ssc.getMedian().longValue());
+    }
+
+    @Test
+    public void testSampleSerialization() throws Exception {
+        SampleResult res = new SampleResult(1000L, 42L);
+        Sample original = ssc.addSample(res);
+        // Serialize without calling getMedian() first
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(baos)) {
+            oos.writeObject(original);
+        }
+        Sample deserialized;
+        try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
+                new java.io.ByteArrayInputStream(baos.toByteArray()))) {
+            deserialized = (Sample) ois.readObject();
+        }
+        assertEquals(42L, deserialized.getMedian());
+        assertEquals(42L, deserialized.getDistributionLine());
+    }
 }

@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="6.0.0-SNAPSHOT">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="SystemTest5938" enabled="true">
+      <stringProp name="TestPlan.comments">System level test for Issue 5938 lazy median</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <!-- Thread Group 1: Single Thread (100 iterations) -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="SingleThread Group" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">100</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="SingleThread Sampler" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">int iter = vars.getIteration()
+long elapsed = iter * 10L
+SampleResult.setSampleLabel(&quot;SingleThreadSample&quot;)
+SampleResult.setSuccessful(true)
+SampleResult.setResponseCodeOK()
+SampleResult.setResponseMessageOK()
+SampleResult.setStartTime(System.currentTimeMillis())
+SampleResult.setEndTime(SampleResult.getStartTime() + elapsed)
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <JSR223Listener guiclass="TestBeanGUI" testclass="JSR223Listener" testname="SingleThread Listener" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.apache.jmeter.visualizers.SamplingStatCalculator
+import org.apache.jmeter.visualizers.Sample
+
+def calc = props.get(&quot;SINGLE_THREAD_CALC&quot;)
+if (calc == null) {
+    calc = new SamplingStatCalculator(&quot;SingleThreadSample&quot;)
+    props.put(&quot;SINGLE_THREAD_CALC&quot;, calc)
+}
+
+Sample s = calc.addSample(sampleResult)
+int iter = vars.getIteration()
+
+// Test lazy snapshot at iteration 50:
+if (iter == 50) {
+    props.put(&quot;SAMPLE_AT_50&quot;, s)
+    long m50 = s.getMedian()
+    props.put(&quot;SAMPLE_AT_50_MEDIAN_EVAL_NOW&quot;, m50)
+    if (m50 != 250L) {
+        throw new AssertionError(&quot;Expected median at sample 50 to be 250, but was: &quot; + m50)
+    }
+}
+
+// Test Sample on which getDistributionLine() is called first without calling getMedian()
+if (iter == 70) {
+    long dist70 = s.getDistributionLine()
+    long med70 = s.getMedian()
+    if (dist70 != 350L || med70 != 350L) {
+        throw new AssertionError(&quot;Iteration 70 distLine=&quot; + dist70 + &quot; median=&quot; + med70 + &quot;, expected 350&quot;)
+    }
+}
+
+// Test Sample on which getMedian() is called first without calling getDistributionLine()
+if (iter == 80) {
+    long med80 = s.getMedian()
+    long dist80 = s.getDistributionLine()
+    if (dist80 != 400L || med80 != 400L) {
+        throw new AssertionError(&quot;Iteration 80 distLine=&quot; + dist80 + &quot; median=&quot; + med80 + &quot;, expected 400&quot;)
+    }
+}
+</stringProp>
+        </JSR223Listener>
+        <hashTree/>
+      </hashTree>
+
+      <!-- Thread Group 2: Concurrent Multi-Thread (5 threads x 20 loops) -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="MultiThread Group" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">20</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">5</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="MultiThread Sampler" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">int iter = vars.getIteration()
+long elapsed = iter * 5L
+SampleResult.setSampleLabel(&quot;MultiThreadSample&quot;)
+SampleResult.setSuccessful(true)
+SampleResult.setResponseCodeOK()
+SampleResult.setResponseMessageOK()
+SampleResult.setStartTime(System.currentTimeMillis())
+SampleResult.setEndTime(SampleResult.getStartTime() + elapsed)
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <JSR223Listener guiclass="TestBeanGUI" testclass="JSR223Listener" testname="MultiThread Listener" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.apache.jmeter.visualizers.SamplingStatCalculator
+import org.apache.jmeter.visualizers.Sample
+
+SamplingStatCalculator calc = (SamplingStatCalculator) props.get(&quot;MULTI_THREAD_CALC&quot;)
+if (calc == null) {
+    synchronized (props) {
+        calc = (SamplingStatCalculator) props.get(&quot;MULTI_THREAD_CALC&quot;)
+        if (calc == null) {
+            calc = new SamplingStatCalculator(&quot;MultiThreadSample&quot;)
+            props.put(&quot;MULTI_THREAD_CALC&quot;, calc)
+        }
+    }
+}
+
+Sample s
+synchronized (calc) {
+    s = calc.addSample(sampleResult)
+}
+</stringProp>
+        </JSR223Listener>
+        <hashTree/>
+      </hashTree>
+
+      <!-- PostThreadGroup: TearDown Validations -->
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="TearDown Validations" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+      </PostThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Assert System Stats" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.apache.jmeter.visualizers.SamplingStatCalculator
+import org.apache.jmeter.visualizers.Sample
+import org.apache.jorphan.reflect.Functor
+
+println(&quot;\n======================================================&quot;)
+println(&quot;=== SYSTEM TEST 5938: END-TO-END VALIDATION REPORT ===&quot;)
+println(&quot;======================================================&quot;)
+
+// 1. Verify Single-Thread Calculator
+SamplingStatCalculator singleCalc = (SamplingStatCalculator) props.get(&quot;SINGLE_THREAD_CALC&quot;)
+assert singleCalc != null : &quot;SINGLE_THREAD_CALC not found&quot;
+
+long singleCount = singleCalc.getCount()
+long singleMedian = singleCalc.getMedian().longValue()
+long singleP50 = singleCalc.getPercentPoint(0.50).longValue()
+long singleP90 = singleCalc.getPercentPoint(0.90).longValue()
+long singleP95 = singleCalc.getPercentPoint(0.95).longValue()
+long singleP99 = singleCalc.getPercentPoint(0.99).longValue()
+long singleMin = singleCalc.getMin().longValue()
+long singleMax = singleCalc.getMax().longValue()
+long singleMean = singleCalc.getMeanAsNumber().longValue()
+
+println(&quot;--- SINGLE THREAD CALCULATOR (100 samples: 10ms..1000ms) ---&quot;)
+println(&quot;Count:             &quot; + singleCount)
+println(&quot;Min:               &quot; + singleMin + &quot; ms&quot;)
+println(&quot;Max:               &quot; + singleMax + &quot; ms&quot;)
+println(&quot;Mean:              &quot; + singleMean + &quot; ms&quot;)
+println(&quot;Median:            &quot; + singleMedian + &quot; ms&quot;)
+println(&quot;PercentPoint(0.50):&quot; + singleP50 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.90):&quot; + singleP90 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.95):&quot; + singleP95 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.99):&quot; + singleP99 + &quot; ms&quot;)
+
+assert singleCount == 100L : &quot;Expected singleCount=100, got: &quot; + singleCount
+assert singleMin == 10L : &quot;Expected singleMin=10, got: &quot; + singleMin
+assert singleMax == 1000L : &quot;Expected singleMax=1000, got: &quot; + singleMax
+assert singleMedian == 500L : &quot;Expected singleMedian=500, got: &quot; + singleMedian
+assert singleP50 == 500L : &quot;Expected singleP50=500, got: &quot; + singleP50
+assert singleP90 == 900L : &quot;Expected singleP90=900, got: &quot; + singleP90
+assert singleP95 == 950L : &quot;Expected singleP95=950, got: &quot; + singleP95
+assert singleP99 == 990L : &quot;Expected singleP99=990, got: &quot; + singleP99
+
+// Verify Sample cached median behavior
+Sample sample50 = (Sample) props.get(&quot;SAMPLE_AT_50&quot;)
+assert sample50 != null : &quot;SAMPLE_AT_50 not found&quot;
+long sample50MedianLater = sample50.getMedian()
+println(&quot;Sample@50 cached median (re-read after 100 samples): &quot; + sample50MedianLater + &quot; ms&quot;)
+assert sample50MedianLater == 250L : &quot;Expected sample 50 median to remain 250, but was: &quot; + sample50MedianLater
+
+Sample currentSample = singleCalc.getCurrentSample()
+assert currentSample != null : &quot;CurrentSample is null&quot;
+println(&quot;CurrentSample median (last sample): &quot; + currentSample.getMedian() + &quot; ms&quot;)
+assert currentSample.getMedian() == 500L : &quot;Expected currentSample median=500, got: &quot; + currentSample.getMedian()
+assert currentSample.getDistributionLine() == 500L : &quot;Expected currentSample distLine=500, got: &quot; + currentSample.getDistributionLine()
+
+// 2. Verify Multi-Thread Calculator
+SamplingStatCalculator multiCalc = (SamplingStatCalculator) props.get(&quot;MULTI_THREAD_CALC&quot;)
+assert multiCalc != null : &quot;MULTI_THREAD_CALC not found&quot;
+
+long multiCount = multiCalc.getCount()
+long multiMedian = multiCalc.getMedian().longValue()
+long multiP50 = multiCalc.getPercentPoint(0.50).longValue()
+long multiP90 = multiCalc.getPercentPoint(0.90).longValue()
+long multiP95 = multiCalc.getPercentPoint(0.95).longValue()
+long multiP99 = multiCalc.getPercentPoint(0.99).longValue()
+long multiMin = multiCalc.getMin().longValue()
+long multiMax = multiCalc.getMax().longValue()
+
+println(&quot;\n--- MULTI THREAD CALCULATOR (5 threads x 20 loops: 5ms..100ms) ---&quot;)
+println(&quot;Count:             &quot; + multiCount)
+println(&quot;Min:               &quot; + multiMin + &quot; ms&quot;)
+println(&quot;Max:               &quot; + multiMax + &quot; ms&quot;)
+println(&quot;Median:            &quot; + multiMedian + &quot; ms&quot;)
+println(&quot;PercentPoint(0.50):&quot; + multiP50 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.90):&quot; + multiP90 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.95):&quot; + multiP95 + &quot; ms&quot;)
+println(&quot;PercentPoint(0.99):&quot; + multiP99 + &quot; ms&quot;)
+
+assert multiCount == 100L : &quot;Expected multiCount=100, got: &quot; + multiCount
+assert multiMin == 5L : &quot;Expected multiMin=5, got: &quot; + multiMin
+assert multiMax == 100L : &quot;Expected multiMax=100, got: &quot; + multiMax
+assert multiMedian == 50L : &quot;Expected multiMedian=50, got: &quot; + multiMedian
+assert multiP50 == 50L : &quot;Expected multiP50=50, got: &quot; + multiP50
+assert multiP90 == 90L : &quot;Expected multiP90=90, got: &quot; + multiP90
+assert multiP95 == 95L : &quot;Expected multiP95=95, got: &quot; + multiP95
+assert multiP99 == 100L : &quot;Expected multiP99=100, got: &quot; + multiP99
+
+// 3. Functor Invocation Validation (StatVisualizer / Aggregate Report pattern)
+Functor fMedian = new Functor(&quot;getMedian&quot;)
+Functor fPct90 = new Functor(&quot;getPercentPoint&quot;, [0.90d] as Object[])
+Functor fPct95 = new Functor(&quot;getPercentPoint&quot;, [0.95d] as Object[])
+Functor fPct99 = new Functor(&quot;getPercentPoint&quot;, [0.99d] as Object[])
+
+Number fMedResult = (Number) fMedian.invoke(singleCalc)
+Number fP90Result = (Number) fPct90.invoke(singleCalc)
+Number fP95Result = (Number) fPct95.invoke(singleCalc)
+Number fP99Result = (Number) fPct99.invoke(singleCalc)
+
+println(&quot;\n--- FUNCTOR ACCESS (StatVisualizer pattern) ---&quot;)
+println(&quot;Functor getMedian:            &quot; + fMedResult)
+println(&quot;Functor getPercentPoint(0.90):&quot; + fP90Result)
+println(&quot;Functor getPercentPoint(0.95):&quot; + fP95Result)
+println(&quot;Functor getPercentPoint(0.99):&quot; + fP99Result)
+
+assert fMedResult.longValue() == 500L : &quot;Functor getMedian expected 500, got: &quot; + fMedResult
+assert fP90Result.longValue() == 900L : &quot;Functor getPercentPoint(0.90) expected 900, got: &quot; + fP90Result
+assert fP95Result.longValue() == 950L : &quot;Functor getPercentPoint(0.95) expected 950, got: &quot; + fP95Result
+assert fP99Result.longValue() == 990L : &quot;Functor getPercentPoint(0.99) expected 990, got: &quot; + fP99Result
+
+println(&quot;======================================================&quot;)
+println(&quot;=== ALL SYSTEM CHECKS COMPLETED AND CONFIRMED OK!  ===&quot;)
+println(&quot;======================================================\n&quot;)
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
